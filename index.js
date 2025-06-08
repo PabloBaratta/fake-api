@@ -12,7 +12,6 @@ const EXTERNAL_API_URL = process.env.EXTERNAL_API_URL;
 const EXTERNAL_API_TOKEN = process.env.EXTERNAL_API_TOKEN;
 
 let balances = {};
-let linkedAccounts = {}; // { walletId: [bankAccountId] }
 
 try {
     if (fs.existsSync("balances.json")) {
@@ -26,29 +25,6 @@ function log(...args) {
     console.log("[LOG]", ...args);
 }
 
-app.post("/link-account", (req, res) => {
-    const { walletId, bankAccountId } = req.body;
-
-    if (!walletId || !bankAccountId) {
-        return res.status(400).json({ error: "walletId y bankAccountId son requeridos" });
-    }
-
-    if (!doesAccountExist(bankAccountId)) {
-        return res.status(404).json({ error: "La cuenta bancaria no existe o no es válida" });
-    }
-
-    if (!linkedAccounts[walletId]) {
-        linkedAccounts[walletId] = [];
-    }
-
-    if (!linkedAccounts[walletId].includes(bankAccountId)) {
-        linkedAccounts[walletId].push(bankAccountId);
-        log(`Cuenta ${bankAccountId} vinculada a wallet ${walletId}`);
-    }
-
-    res.json({ message: "Cuenta bancaria vinculada correctamente" });
-});
-
 app.post("/debin", async (req, res) => {
     const { walletId, bankAccountId, amount } = req.body;
 
@@ -56,16 +32,24 @@ app.post("/debin", async (req, res) => {
         return res.status(400).json({ error: "walletId, bankAccountId y amount son requeridos" });
     }
 
-    if (!linkedAccounts[walletId] || !linkedAccounts[walletId].includes(bankAccountId)) {
-        return res.status(403).json({ error: "Cuenta bancaria no vinculada a esta wallet" });
-    }
-
     try {
-        const response = await axios.post(`${EXTERNAL_API_URL}/external-load`, {
-            fromAccountId: bankAccountId,
-            toWalletId: walletId,
-            amount,
-        });
+        const externalLoadRequest = {
+            walletEmail: walletId,
+            amount: amount,
+            externalServiceName: "Bank",
+            externalServiceType: "BANK",
+            externalServiceEmail: bankAccountId
+        };
+
+        const response = await axios.post(
+            `${EXTERNAL_API_URL}/external-load`,
+            externalLoadRequest,
+            {
+                headers: {
+                    "X-API-TOKEN": process.env.EXTERNAL_API_TOKEN,
+                },
+            }
+        );
 
         res.json({
             message: "Solicitud DEBIN procesada correctamente",
