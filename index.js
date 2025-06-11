@@ -38,6 +38,11 @@ app.post("/debin", async (req, res) => {
         return res.status(404).json({ error: "Cuenta bancaria no encontrada" });
     }
 
+
+    if (balances[bankAccountId] < amount) {
+        return res.status(400).json({ error: "Fondos insuficientes" });
+    }
+
     try {
         const externalLoadRequest = {
             walletEmail: walletId,
@@ -85,6 +90,10 @@ app.post("/transfer", async (req, res) => {
 
     if (accountDoesNotExists) {
         return res.status(404).json({ error: "Cuenta bancaria no encontrada" });
+    }
+
+    if (balances[fromAccountId] < amount) {
+        return res.status(400).json({ error: "Fondos insuficientes" });
     }
 
     try {
