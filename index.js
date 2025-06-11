@@ -97,20 +97,23 @@ app.post("/transfer", async (req, res) => {
     }
 
     try {
+
+        const externalLoadRequest = {
+            walletEmail: toWalletId,
+            amount: amount,
+            externalServiceName: "Bank",
+            externalServiceType: "BANK",
+            externalServiceEmail: fromAccountId
+        };
         const response = await axios.post(
-            `${EXTERNAL_API_URL}/external_load`,
-            {
-                fromAccountId,
-                walletId: toWalletId,
-                amount,
-            },
+            `${EXTERNAL_API_URL}/external-load`,
+            externalLoadRequest,
             {
                 headers: {
-                    Authorization: `Bearer ${EXTERNAL_API_TOKEN}`,
+                    "X-API-TOKEN": process.env.EXTERNAL_API_TOKEN,
                 },
             }
         );
-
 
         balances[toWalletId] = (balances[toWalletId] || 0) - amount;
         fs.writeFileSync("balances.json", JSON.stringify(balances, null, 2));
