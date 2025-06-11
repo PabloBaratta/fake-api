@@ -1,0 +1,69 @@
+name: Tag and Publish
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  tag-and-publish:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Extract version from package.json
+        id: extract_version
+        run: |
+          VERSION=$(grep '"version"' package.json | head -1 | sed -E 's/.*"version": *"([^"]+)".*/\1/')
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+
+      - name: Fetch all tags
+        run: git fetch --tags
+
+      - name: Get latest tag version
+        id: get_latest_tag
+        run: |
+          LATEST_TAG=$(git tag --list "v*" --sort=-v:refname | head -n 1)
+          echo "LATEST_TAG=$LATEST_TAG" >> $GITHUB_ENV
+
+      - name: Compare versions and create tag if changed
+        id: create_tag
+        run: |
+          NEW_TAG="v${{ env.VERSION }}"
+          if [ "$NEW_TAG" = "$LATEST_TAG" ]; then
+            echo "Version not changed ($NEW_TAG), no tag created."
+            echo "TAG_CREATED=false" >> $GITHUB_ENV
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git tag "$NEW_TAG"
+          git push origin "$NEW_TAG"
+          echo "TAG_CREATED=true" >> $GITHUB_ENV
+          echo "TAG_NAME=$NEW_TAG" >> $GITHUB_ENV
+
+      - name: Set up Docker Buildx
+        if: env.TAG_CREATED == 'true'
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        if: env.TAG_CREATED == 'true'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push Docker image
+        if: env.TAG_CREATED == 'true'
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          tags: ghcr.io/pablobaratta/fake-api:${{ env.VERSION }}
