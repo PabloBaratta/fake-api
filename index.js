@@ -32,6 +32,12 @@ app.post("/debin", async (req, res) => {
         return res.status(400).json({ error: "walletId, bankAccountId y amount son requeridos" });
     }
 
+    let accountDoesNotExists = !doesAccountExist(bankAccountId);
+
+    if (accountDoesNotExists) {
+        return res.status(404).json({ error: "Cuenta bancaria no encontrada" });
+    }
+
     try {
         const externalLoadRequest = {
             walletEmail: walletId,
@@ -51,6 +57,7 @@ app.post("/debin", async (req, res) => {
             }
         );
 
+        balances[bankAccountId] = (balances[bankAccountId]) - amount;
         res.json({
             message: "Solicitud DEBIN procesada correctamente",
             result: response.data,
